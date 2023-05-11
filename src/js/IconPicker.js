@@ -37,7 +37,7 @@ export default class IconPicker {
         // Initialize icon picker
         this._preBuild();
 
-        if (this.element && this.options.iconSource.length > 0) {
+        if (this.element) {
             this._binEvents();
             this._renderdIcons();
             this._createModal();
@@ -192,120 +192,88 @@ export default class IconPicker {
         this._emit('save', this.emitValues);
     }
 
-    /**
-     * Generate icons elements
-     * @private
-     */
-    async _renderdIcons() {
-        const {root, options} = this;
-        let previousSelectedIcon = null;
-        let currentlySelectElement = null;
-        this.availableIcons = [];
+  /**
+   * Generate icons elements
+   * @private
+   */
+  _renderdIcons() {
+    const { root, options } = this;
+    let previousSelectedIcon = null;
+    let currentlySelectElement = null;
+    this.availableIcons = [];
 
-        root.content.innerHTML = '';
+    root.content.innerHTML = '';
 
-        let icons = await this._getIcons();
+    for (const library of this._getIcons()) {
+      for (const key of library.icons) {
+        const iconClass = library.prefix + key
 
-        icons.forEach((library) => {
-            for (const [key, value] of Object.entries(library.icons)) {
-                const iconTarget = document.createElement('button');
-                iconTarget.title = key
-                iconTarget.className = `icon-element ${key}`;
-                iconTarget.dataset.value = library.prefix + key
+        const iconTarget = document.createElement('button');
+        iconTarget.title = key
+        iconTarget.className = `icon-element ${key}`;
+        iconTarget.dataset.value = iconClass
 
-                if (library.chars) {
-                    iconTarget.dataset.unicode = _.getKeyByValue(library.chars, key);
-                }
+        const iconElement = document.createElement('i');
+        iconElement.className = iconClass;
 
-                const iconElement = document.createElementNS('https://www.w3.org/2000/svg', 'svg');
-                iconElement.setAttribute('height', '24');
-                iconElement.setAttribute('width', '24');
-                iconElement.setAttribute('viewBox', `0 0 ${value.width ? value.width : library.width} ${value.height ? value.height : library.height}`);
-                iconElement.innerHTML = value.body;
+        iconTarget.append(iconElement)
+        root.content.appendChild(iconTarget);
 
-                iconTarget.append(iconElement)
+        this.availableIcons.push({ value: key, body: iconElement.outerHTML });
 
-                root.content.appendChild(iconTarget);
+        // Icon click event
+        iconTarget.addEventListener('click', (evt) => {
+          if (this.currentlySelectName !== evt.currentTarget.firstChild.className) {
+            evt.currentTarget.classList.add('is-selected');
 
-                this.availableIcons.push({value: key, body: iconElement.outerHTML});
+            currentlySelectElement = evt.currentTarget;
+            this.currentlySelectName = currentlySelectElement.dataset.value;
+            this.SVGString = iconElement.outerHTML;
 
-                // Icon click event
-                iconTarget.addEventListener('click', (evt) => {
-                    if (this.currentlySelectName !== evt.currentTarget.firstChild.className) {
-                        evt.currentTarget.classList.add('is-selected');
-
-                        currentlySelectElement = evt.currentTarget;
-                        this.currentlySelectName = currentlySelectElement.dataset.value;
-                        this.SVGString = iconElement.outerHTML;
-
-                        this.emitValues = {
-                            name: key,
-                            value: this.currentlySelectName,
-                            svg: this.SVGString,
-                        }
-
-                        if (library.chars) {
-                            this.emitValues.unicode = iconElement.dataset.unicode
-                        }
-
-                        this._emit('select', this.emitValues);
-                    }
-
-                    if (previousSelectedIcon) {
-                        previousSelectedIcon.classList.remove('is-selected');
-                    }
-
-                    if (options.closeOnSelect) {
-                        this._onSave();
-                    }
-
-                    previousSelectedIcon = currentlySelectElement;
-                });
+            this.emitValues = {
+              name: key,
+              value: this.currentlySelectName,
+              svg: this.SVGString,
             }
+
+            this._emit('select', this.emitValues);
+          }
+
+          if (previousSelectedIcon) {
+            previousSelectedIcon.classList.remove('is-selected');
+          }
+
+          if (options.closeOnSelect) {
+            this._onSave();
+          }
+
+          previousSelectedIcon = currentlySelectElement;
         });
-
-        if (options.defaultValue || this.element.value) {
-            // Check if icon name ou icon value is set
-            let defaultValueElement = document.querySelector(`[data-value="${options.defaultValue ? options.defaultValue : this.element.value}"]`) ?
-                document.querySelector(`[data-value="${options.defaultValue ? options.defaultValue : this.element.value}"]`) :
-                document.querySelector(`.${options.defaultValue ? options.defaultValue : this.element.value}`);
-            let iconValue = defaultValueElement.dataset.value;
-
-            defaultValueElement.classList.add('is-selected');
-
-            previousSelectedIcon = defaultValueElement;
-            this.currentlySelectName = iconValue;
-
-            if (!this.element.value) {
-                this._setValueInput();
-            }
-        }
+      }
     }
 
-    /**
-     *
-     * @returns {string}
-     * @private
-     */
-    async _getIcons() {
-        const {options} = this
-        const iconsURL = [];
-
-        let sourceInformation = resolveCollection(options.iconSource);
-
-        for (const source of Object.values(sourceInformation)) {
-            iconsURL.push(source.url)
-        }
-
-        return await Promise.all(iconsURL.map((iconURL) => fetch(iconURL).then((response) => response.json())))
-            .then((iconLibrary) => {
-                iconLibrary.forEach((library) => {
-                    library.prefix = sourceInformation[library.prefix].prefix
-                })
-
-                return iconLibrary;
-            });
+    const value = options.defaultValue || this.element.value;
+    if (value) {
+      const defaultElement = root.content.querySelector(`[data-value="${value}"]`);
+      if (defaultElement) {
+        defaultElement.classList.add('is-selected');
+        previousSelectedIcon = defaultElement;
+        this.currentlySelectName = value;
+      }
+      if (!this.element.value) {
+        this._setValueInput();
+      }
     }
+  }
+
+  /**
+   *
+   * @returns {string}
+   * @private
+   */
+  _getIcons() {
+    return [{ "prefix": "fa-brands fa-", "icons": ["linkedin-in", "facebook-f", "youtube", "twitter"] }, { "prefix": "fa-duotone fa-", "icons": ["arrow-down-up-across-line", "house-building", "pen-ruler", "people-arrows", "laptop-code", "lightbulb", "sitemap", "book-open-cover", "lock", "gas-pump", "comments-question-check", "car-side", "plug", "angle-right", "escalator", "bullseye", "money-bill-wave", "chart-area", "charging-station", "person-running", "user-group", "folder-open", "headset", "map-location-dot", "chart-bar", "file-binary", "handshake", "circle-check", "compass-drafting", "universal-access", "crystal-ball", "scroll", "seedling", "boxes-packing", "shield-halved", "newspaper", "money-check-dollar", "puzzle-piece", "road", "chart-pie", "chart-line", "arrow-right", "screwdriver-wrench", "money-bill-transfer", "clipboard-check", "typewriter", "eye", "hand-holding-dollar", "phone", "rocket-launch", "person-digging", "arrow-left", "envelope", "meter-bolt", "circle-info", "car-building", "tablet-screen", "clock", "mobile-screen", "network-wired", "download", "mobile", "tower-broadcast", "bolt", "sun", "angle-down", "toolbox", "credit-card", "hand-holding-hand", "book-open-reader", "beer-mug", "paint-roller", "hotdog", "magnifying-glass", "tv", "megaphone", "user-headset", "cart-shopping-fast", "keynote", "xmark", "chalkboard-user", "cars", "tablet", "truck-moving", "trophy", "award", "building", "qrcode", "transformer-bolt", "angle-left", "right-left", "brush", "cards-blank", "print", "masks-theater", "notdef"] }, { "prefix": "fa-light fa-", "icons": ["arrow-down-up-across-line", "house-building", "pen-ruler", "people-arrows", "laptop-code", "lightbulb", "sitemap", "book-open-cover", "lock", "gas-pump", "comments-question-check", "car-side", "plug", "angle-right", "escalator", "bullseye", "money-bill-wave", "chart-area", "charging-station", "person-running", "user-group", "folder-open", "headset", "map-location-dot", "chart-bar", "file-binary", "handshake", "circle-check", "compass-drafting", "universal-access", "crystal-ball", "scroll", "seedling", "boxes-packing", "shield-halved", "newspaper", "money-check-dollar", "puzzle-piece", "road", "chart-pie", "chart-line", "arrow-right", "screwdriver-wrench", "money-bill-transfer", "clipboard-check", "typewriter", "eye", "hand-holding-dollar", "phone", "rocket-launch", "person-digging", "arrow-left", "envelope", "meter-bolt", "circle-info", "car-building", "tablet-screen", "clock", "mobile-screen", "network-wired", "download", "mobile", "tower-broadcast", "bolt", "sun", "angle-down", "toolbox", "credit-card", "hand-holding-hand", "book-open-reader", "beer-mug", "paint-roller", "hotdog", "magnifying-glass", "tv", "megaphone", "user-headset", "cart-shopping-fast", "keynote", "xmark", "chalkboard-user", "cars", "tablet", "truck-moving", "trophy", "award", "building", "qrcode", "transformer-bolt", "angle-left", "right-left", "brush", "cards-blank", "print", "masks-theater", "notdef"] }, { "prefix": "fa-solid fa-", "icons": ["arrow-down-up-across-line", "house-building", "pen-ruler", "people-arrows", "laptop-code", "lightbulb", "sitemap", "book-open-cover", "lock", "gas-pump", "comments-question-check", "car-side", "plug", "angle-right", "escalator", "bullseye", "money-bill-wave", "chart-area", "charging-station", "person-running", "user-group", "folder-open", "headset", "map-location-dot", "chart-bar", "file-binary", "handshake", "circle-check", "compass-drafting", "universal-access", "crystal-ball", "scroll", "seedling", "boxes-packing", "shield-halved", "newspaper", "money-check-dollar", "puzzle-piece", "road", "chart-pie", "chart-line", "arrow-right", "screwdriver-wrench", "money-bill-transfer", "clipboard-check", "typewriter", "eye", "hand-holding-dollar", "phone", "rocket-launch", "person-digging", "arrow-left", "envelope", "meter-bolt", "circle-info", "car-building", "tablet-screen", "clock", "mobile-screen", "network-wired", "download", "mobile", "tower-broadcast", "bolt", "sun", "angle-down", "toolbox", "credit-card", "hand-holding-hand", "book-open-reader", "beer-mug", "paint-roller", "hotdog", "magnifying-glass", "tv", "megaphone", "user-headset", "cart-shopping-fast", "keynote", "xmark", "chalkboard-user", "cars", "tablet", "truck-moving", "trophy", "award", "building", "qrcode", "transformer-bolt", "angle-left", "right-left", "brush", "cards-blank", "print", "masks-theater", "notdef"] }]
+  }
 
     /**
      *
